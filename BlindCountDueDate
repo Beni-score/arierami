@@ -1,0 +1,269 @@
+// ==UserScript==
+// @name         BlindCountsDueDate
+// @namespace    https://github.com/jgray0705/UserScripts
+// @version      7.0
+// @description  Show the date/time that blind counts are due
+// @author       grajef@
+// @match        https://aftlite-na.amazon.com/bcc/assign*
+// @match        https://aftlite-portal.amazon.com/bcc_admin/assign*
+// @grant        none
+// ==/UserScript==
+
+(function() {
+    let table = window.location.href.match("aftlite-na") ? document.querySelectorAll("table")[1] : document.querySelectorAll("table")[0];
+    let head = document.createElement("th");
+    head.innerHTML = "Due By";
+    table.children[0].children[0].appendChild(head);
+    let head2 = document.createElement("th");
+    head2.innerHTML = "Bins";
+    table.children[0].children[0].appendChild(head2);
+
+    let map = new Map();
+    let today = new Date();
+    for(let row of table.rows) {
+        try{
+            // Second_AdHoc_2020-11-16_04-33-21
+            let title = row.cells[0].innerHTML.split(">")[1].split("<")[0];
+            title = title.replace("Second_", "").replace("Third_", "");
+            if(title.includes("AdHoc") && !title.includes("ROV")) {
+                // AdHoc_2020-11-16_04-33-21
+                title = title.replace("Second_", "").replace("Third_", "");
+                // AdHoc 2020-11-16 04-33-21
+                let date = title.split("_");
+                // 04 33 21
+                let d2 = date[2].split("-");
+                // 2020-11-16T04:33:21.000Z
+                let d = new Date(date[1] + "T" + d2.join(":") + ".000Z"); // create date as UTC and it will convert to local time
+                d = new Date(d.getTime() + 60 * 60 * 24 * 1000);
+                SetTimes(d);
+                let data = document.createElement("td");
+                data.innerHTML = d.toLocaleString();
+                row.appendChild(data);
+                SetTimes(today);
+                HighlightDate(data, today, d);
+
+            }
+            else if(title.includes("Ad_Hoc")) {
+                // AdHoc 2020-11-16 04-33-21
+                let date = title.split("_");
+                // 04 33 21
+                // 2020-11-16T04:33:21.000Z
+                let d = new Date(date[3] + "-" + date[4] + "-" + date[5]); // create date as UTC and it will convert to local time
+                d = new Date(d.getTime() + 60 * 60 * 48 * 1000);
+                SetTimes(d);
+                let data = document.createElement("td");
+                data.innerHTML = d.toLocaleString();
+                row.appendChild(data);
+                SetTimes(today);
+                HighlightDate(data, today, d);
+            }
+            else if(title.includes("IRDR")) {
+                // IRDR_12012020_UAZ1_5
+                let date = title.split("_")[1];
+                // due date == date from name + 7 days
+                let d = new Date(date.substring(0, 2) + "/" + date.substring(2, 4) + "/" + date.substring(5));
+                d.setDate(d.getDate() + 7);
+                SetTimes(d);
+                let data = document.createElement("td");
+                data.innerHTML = d.toLocaleString();
+                row.appendChild(data);
+                SetTimes(today);
+                HighlightDate(data, today, d);
+            }
+            else if(title.includes("I_RDR")) {
+                // I_RDR_{FC}_MM_DD_YYYY_{n}
+                let date = title.split("_");
+                let l = date.length;
+                let year = date[l - 2];
+                let day = date[l - 3];
+                let month = date[l - 4];
+                let d = new Date(month + "/" + day + "/" + year);
+                d.setDate(d.getDate() + 7);
+                SetTimes(d);
+                let data = document.createElement("td");
+                data.innerHTML = d.toLocaleString();
+                row.appendChild(data);
+                SetTimes(today);
+                HighlightDate(data, today, d);
+            }
+            else {
+                let date = title.split("_");
+                date = date[date.length - 1].split("-");
+                let d = new Date(date[0] + "/" + date[1] + "/" + date[2]);
+                d.setDate(d.getDate() + 1);
+                SetTimes(d);
+                let data = document.createElement("td");
+                data.innerHTML = d.toLocaleString();
+                row.appendChild(data);
+                SetTimes(today);
+                HighlightDate(data, today, d);
+            }
+            // Check status of users assigned to count
+            let assignedUsers = row.cells[2].querySelectorAll("a");
+            for(let user of assignedUsers) {
+                let login = window.location.href.match("aftlite-portal") ? user.innerHTML.split(" ")[2].replace(")", "") : user.innerHTML.split(" ")[1].replace(")", "");
+                // get last action
+                if(!map.has(login)) {
+                    let request = new XMLHttpRequest();
+                    request.open("GET", "/labor_tracking/lookup_history?user_name=" + login);
+                    request.responseType = "document";
+                    request.onloadend = function() {
+                        let lastAction = "";
+                        if(window.location.href.match("aftlite-portal")) {
+                            let table = request.responseXML.getElementsByTagName("table")[1];
+                            lastAction = table.rows[1].cells[1].lastChild.textContent.trim();
+                        } else {
+                            let table = request.responseXML.getElementsByClassName("reportLayout")[0];
+                            lastAction = table.rows[1].cells[1].innerHTML.trim();
+                        }
+                        let cell = row.cells[2];
+                        map.set(login, lastAction);
+                        if(lastAction == "EOS") {
+                            cell.innerHTML = cell.innerHTML.replace(login, `<span style="background-color:red;">${login}(${lastAction})</span>`);
+                        } else cell.innerHTML = cell.innerHTML.replace(login, `${login}(${lastAction})`);
+                    }
+                    request.send();
+                }
+                else {
+                    let cell = row.cells[2];
+                    let lastAction = map.get(login);
+                    if(map.get(login) == "EOS") {
+                        cell.innerHTML = cell.innerHTML.replace(login, `<span style="background-color:red;">${login}(${lastAction})</span>`);
+                    } else cell.innerHTML = cell.innerHTML.replace(login, `${login}(${lastAction})`);
+                }
+            }
+        } catch(e) {
+            console.log(e);
+        }
+    }
+    let btn = document.createElement("button");
+    btn.innerHTML = "Load bins";
+    head2.after(btn);
+    btn.onclick = function() {
+        for(let row of table.rows) {
+        // check the time for due date
+            try{
+                let listLink = row.children[0].getElementsByTagName("a")[0].href.replace("https://aftlite-na.amazon.com", "");
+                let req = new XMLHttpRequest();
+                req.open("GET", listLink);
+                req.responseType = "document";
+                req.onload = function() {
+                    let total = 0;
+                    let complete = 0;
+                    var bins = 0;
+                    if(window.location.href.match("aftlite-na")) {
+                        bins = this.responseXML.getElementsByClassName("reportLayout")[0].children[1]; // tbody of the table
+                    } else {
+                        bins = this.responseXML.querySelector("table");
+                        total = -1;
+                        complete = -1;
+                    }
+                    for(let bin of bins.rows) {
+                        total++;
+                        if(!bin.cells[2].innerHTML.includes("Incomplete")) {
+                            complete++;
+                        }
+                    }
+                    let d = document.createElement("td");
+                    d.innerHTML = complete + "/" + total;
+                    if(total > 1000) d.style.backgroundColor = "red";
+                    row.appendChild(d);
+                }
+                req.send();
+            } catch(error) {
+                console.log(error);
+            }
+        }
+    }
+    // sort the table
+    // a.	Any IRDR Counts
+    // b.	Oldest 2nd and 3rd AdHocs
+    // c.	Oldest 2nd and 3rd strategics
+    // d.	Newest 1st AdHocs
+    // e.	Newest 1st Strategic
+    var rows, i, x, y, shouldSwitch;
+    var switching = true;
+    while (switching) {
+        switching = false;
+        rows = table.rows;
+        /* Loop through all table rows (except the
+    first, which contains table headers): */
+        for (i = 1; i < (rows.length - 1); i++) {
+            shouldSwitch = false;
+            x = rows[i];
+            y = rows[i + 1];
+            if(x.cells[3].textContent == "Invalid Date" && y.cells[3].textContent != "Invalid Date") {
+                shouldSwitch = true;
+                break;
+            }
+            if(new Date(x.cells[3].textContent) > new Date(y.cells[3].textContent)){
+                shouldSwitch = true;
+                break;
+            }
+            if(new Date(x.cells[3].textContent) == new Date(y.cells[3].textContent)){
+                if(x.cells[0].textContent.includes("IRDR") && y.cells[0].textContent.includes("IRDR")) {
+                    if(x.cells[0].textContent.includes("Second") && y.cells[0].textContent.includes("Third")) {
+                        shouldSwitch = true;
+                        break;
+                    }
+                }
+                if(x.cells[0].textContent.includes("AdHoc") && y.cells[0].textContent.includes("AdHoc")) {
+                    if(!x.cells[0].textContent.includes("Third") && y.cells[0].textContent.includes("Third")) {
+                        shouldSwitch = true;
+                        break;
+                    }
+                    if((!x.cells[0].textContent.includes("Second") && !x.cells[0].textContent.includes("Third")) && y.cells[0].textContent.includes("Second")) {
+                        shouldSwitch = true;
+                        break;
+                    }
+                    if((!x.cells[0].textContent.includes("Second") && !x.cells[0].textContent.includes("Third")) && y.cells[0].textContent.includes("Third")) {
+                        shouldSwitch = true;
+                        break;
+                    }
+                }
+                if(!x.cells[0].textContent.includes("IRDR") && y.cells[0].textContent.includes("IRDR")) {
+                    shouldSwitch = true;
+                    break;
+                }
+            }
+        }
+        if (shouldSwitch) {
+            /* If a switch has been marked, make the switch
+      and mark that a switch has been done: */
+            rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
+            switching = true;
+        }
+    }
+})();
+
+function HighlightDate(cell, today, dueDate) {
+    if(today.getDate() == dueDate.getDate() && today.getMonth() == dueDate.getMonth() && today.getFullYear() == dueDate.getFullYear()) {
+                // count is due today
+                cell.style.backgroundColor = "yellow";
+            }
+            else if(today.getFullYear() > dueDate.getFullYear() || today.getMonth() > dueDate.getMonth() || (today.getMonth() == dueDate.getMonth() && today.getDate() > dueDate.getDate())) {
+                // count is late
+                cell.style.backgroundColor = "red";
+            }
+}
+
+function SetTimes(date) {
+    date.setHours(23);
+    date.setMinutes(59);
+    date.setSeconds(59);
+}// ==UserScript==
+// @name         New Userscript
+// @namespace    http://tampermonkey.net/
+// @version      0.1
+// @description  try to take over the world!
+// @author       You
+// @match        http://*/*
+// @icon         data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==
+// @grant        none
+// ==/UserScript==
+
+(function() {
+    'use strict';
+
+    // Your code here...
+})();
