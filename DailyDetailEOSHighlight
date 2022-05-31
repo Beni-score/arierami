@@ -1,0 +1,33 @@
+// ==UserScript==
+// @name         DailyDetailEOSHighlight
+// @namespace    https://github.com/jgray0705/UserScripts
+// @version      1.0
+// @description  Highlights in orange any functions that are EOS
+// @author       grajef@
+// @match        https://aftlite-na.amazon.com/labor_tracking/view_daily_detail*
+// @grant        none
+// ==/UserScript==
+
+(function() {
+    let eos = document.getElementsByTagName('select');
+    for(let box of eos) {
+        if(box.value == "EOS") {
+            box.parentNode.parentNode.style.background = 'orange';
+        }
+    }
+})();// ==UserScript==
+// @name         New Userscript
+// @namespace    http://tampermonkey.net/
+// @version      0.1
+// @description  try to take over the world!
+// @author       You
+// @match        http://*/*
+// @icon         data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==
+// @grant        none
+// ==/UserScript==
+
+(function() {
+    'use strict';
+
+    // Your code here...
+})();
