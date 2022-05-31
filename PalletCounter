@@ -1,0 +1,125 @@
+// ==UserScript==
+// @name         PalletCounter
+// @namespace    https://github.com/jgray0705/userscripts
+// @version      4.0
+// @description  Add pallet count to receive inventory page
+// @author       grajef@
+// @match        https://aftlite-na.amazon.com/receive_inventory/show*
+// @downloadUrl  https://github.com/JGray0705/UserScripts/raw/master/PalletCounter.user.js
+// @grant        none
+// ==/UserScript==
+
+(function() {
+    'use strict';
+    let pallets = document.getElementById("transfer_containers").querySelector("tbody");
+    let count = pallets.children[1].children[1].children.length;
+    pallets.children[1].children[0].innerText += " (" + count + ")";
+    let infoTable = document.getElementById("transfer_progress").querySelector("table");
+    let palletTable = document.getElementById("transfer_progress_by_outer_container").querySelector("table");
+    let frozenPallets = 0;
+    let frozenUnits = 0;
+    let frozenStowed = 0;
+    let frozenReceived = 0;
+    let frozenRemaining = 0;
+    let chilledPallets = 0;
+    let chilledUnits = 0;
+    let chilledStowed = 0;
+    let chilledReceived = 0;
+    let chilledRemaining = 0;
+    let ambientPallets = 0;
+    let ambientUnits = 0;
+    let ambientStowed = 0;
+    let ambientReceived = 0;
+    let ambientRemaining = 0;
+    for(let row of palletTable.rows) {
+        let zone = row.cells[1].innerHTML;
+        if(zone.includes("frozen")){
+            frozenPallets++;
+            frozenUnits += parseFloat(row.cells[2].innerHTML);
+            frozenStowed += parseFloat(row.cells[5].innerHTML);
+            frozenReceived += parseFloat(row.cells[3].innerHTML);
+        }
+        if(zone.includes("chilled")){
+            chilledPallets++;
+            chilledUnits += parseFloat(row.cells[2].innerHTML);
+            chilledStowed += parseFloat(row.cells[5].innerHTML);
+            chilledReceived += parseFloat(row.cells[3].innerHTML);
+        }
+        if(zone.includes("ambient")){
+            ambientPallets++;
+            ambientUnits += parseFloat(row.cells[2].innerHTML);
+            ambientStowed += parseFloat(row.cells[5].innerHTML);
+            ambientReceived += parseFloat(row.cells[3].innerHTML);
+        }
+    }
+    let table = document.createElement("table");
+    table.classList.add("bordered_table");
+    table.classList.add("left_aligned");
+    let head = document.createElement("tr");
+    let h1 = document.createElement("th");
+    let h2 = document.createElement("th");
+    let h3 = document.createElement("th");
+    let h4 = document.createElement("th");
+    let h5 = document.createElement("th");
+    let h6 = document.createElement("th");
+    let h7 = document.createElement("th");
+    table.appendChild(head);
+    h1.innerHTML = "Zone";
+    h2.innerHTML = "Pallets";
+    h3.innerHTML = "Units";
+    h4.innerHTML = "% Dock Received";
+    h5.innerHTML = "Units Stowed";
+    h6.innerHTML = "Units Remaining"
+    h7.innerHTML = "% Stowed";
+    head.appendChild(h1);
+    head.appendChild(h2);
+    head.appendChild(h3);
+    head.appendChild(h4);
+    head.appendChild(h5);
+    head.appendChild(h6);
+    head.appendChild(h7);
+    if(frozenPallets > 0) {
+        table.appendChild(createRow("Frozen", frozenPallets, frozenUnits, frozenStowed, frozenReceived));
+    }
+    if(chilledPallets > 0) {
+        table.appendChild(createRow("Chilled", chilledPallets, chilledUnits, chilledStowed, chilledReceived));
+    }
+    if(ambientPallets > 0) {
+        table.appendChild(createRow("Ambient", ambientPallets, ambientUnits, ambientStowed, ambientReceived));
+    }
+    table.style.marginTop = "10px";
+    infoTable.after(table);
+})();
+
+function createRow(zone, palletCount, units, stowed, received) {
+    let row = document.createElement("tr");
+    let h = document.createElement("th");
+    h.innerHTML = zone;
+    row.appendChild(h);
+    let c1 = document.createElement("td");
+    let c2 = document.createElement("td");
+    let c3 = document.createElement("td");
+    let c4 = document.createElement("td");
+    let c5 = document.createElement("td");
+    let c6 = document.createElement("td");
+    c1.style.width = "100px";
+    c2.style.width = "100px";
+    c3.style.width = "100px";
+    c4.style.width = "100px";
+    c5.style.width = "100px";
+    c6.style.width = "100px";
+    c1.innerHTML = palletCount;
+    c2.innerHTML = units;
+    c3.innerHTML = ((received / units) * 100).toFixed(2) + "%";
+    c4.innerHTML = stowed;
+    c5.innerHTML = units - stowed;
+    c6.innerHTML = ((stowed / units) * 100).toFixed(2) + "%";
+    row.appendChild(h);
+    row.appendChild(c1);
+    row.appendChild(c2);
+    row.appendChild(c3);
+    row.appendChild(c4);
+    row.appendChild(c5);
+    row.appendChild(c6);
+    return row;
+}
