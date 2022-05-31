@@ -1,0 +1,22 @@
+// ==UserScript==
+// @name         Detailed Picklists Dashboard
+// @namespace    https://thishz.net/
+// @version      0.992
+// @description  Display how many bags/picklists and items for each window.Support up to 12 future windows.
+// @author       whz1995
+// @match        https://aftlite-na.amazon.com/wms/view_picklists*
+// @grant        none
+// ==/UserScript==
+
+
+
+var picklist_count = document.getElementsByTagName("tbody")[1].rows.length;
+var windows_array = [picklist_count];
+for(var x = 0; x < picklist_count; x++){
+    windows_array[x] = document.getElementsByTagName("tbody")[1].rows[x].cells[8].innerHTML;
+}
+windows_array.sort();
+
+var unique_windows_array = [...new Set(windows_array)];
+
+var text;
