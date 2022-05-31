@@ -1,0 +1,116 @@
+// ==UserScript==
+// @name            Job History
+// @description     Add Job History and Job Data into PhoneTool
+// @author          ekarulf@
+// @namespace       https://w.amazon.com/index.php/EnvImprovementNinjas/JobHistory
+// @version         20180122
+// @include         https://phonetool.amazon.com/people/*
+// @include         https://phonetool.amazon.com/users/*
+// @include         https://connect.amazon.com/people/*
+// @include         https://connect.amazon.com/users/*
+// @require         https://ekarulf.corp.amazon.com/js/handlebars-v4.0.6.min.js
+// @require         https://ekarulf.corp.amazon.com/js/jquery-1.12.4.min.js
+// @require         https://internal-cdn.amazon.com/sentry.amazon.com/public/javascripts/openid.xhr.js
+// ==/UserScript==
+// Note: The version string must be formatted YYYYMMDD to help Greasemonkey's version comparison logic
+
+(function($, Handlebars) {
+    'use strict';
+
+    var fetchJobData = function(user) {
+        return $.ajax({
+            method: "GET",
+            url: 'https://phonetool.amazon.com/users/' + user + '.json',
+            xhrFields: {
+                withCredentials: true
+            },
+            dataType: 'json'
+        });
+    };
+
+    var fetchJobHistory = function(user) {
+        return $.ajax({
+            method: "GET",
+            url: 'https://ekarulf.corp.amazon.com/cors/job-history/',
+            data: {
+                login: user
+            },
+            xhrFields: {
+                withCredentials: true
+            },
+            dataType: 'json'
+        });
+    };
+
+    var fetchStaticResource = function(resource) {
+        return $.ajax({
+            method: "GET",
+            url: 'https://ekarulf.corp.amazon.com/cors/job-history/' + resource,
+            xhrFields: {
+                withCredentials: true
+            },
+        });
+    }
+
+    var renderJobHistory = function(templateSource, jobHistory) {
+        var template = Handlebars.compile(templateSource);
+        var viewModel = {};
+
+        if ($.isArray(jobHistory) && jobHistory.length > 0) {
+            viewModel.history = jobHistory;
+        }
+
+        return template(viewModel);
+    };
+
+    var renderJobData = function(templateSource, jobData) {
+        var template = Handlebars.compile(templateSource);
+        var viewModel = {};
+
+        if (typeof jobData.job_level === 'number') {
+            viewModel.job_level = jobData.job_level;
+        }
+
+        if (typeof jobData.total_tenure_formatted === 'string') {
+            viewModel.total_tenure_formatted = jobData.total_tenure_formatted;
+        }
+
+        return template(viewModel);
+    };
+
+    // Main function
+    var user = $('.login').text().trim();
+    // Patch to fix Firefox returning no data
+  	if (user.length == 0) {
+ 			user = document.location.href.substring(document.location.href.lastIndexOf('/')+1, document.location.href.length);
+    }    
+
+    $.when(fetchJobHistory(user), fetchStaticResource('job-history.html')).done(function(jobHistory, jobHistoryTemplate) {
+        // Each argument is an array with the following structure: [ data, statusText, jqXHR ]
+        jobHistory = jobHistory[0];
+        jobHistoryTemplate = jobHistoryTemplate[0];
+
+        // Insert Job History after org chart in DOM
+        var jobHistoryHtml = renderJobHistory(jobHistoryTemplate, jobHistory);
+        $('.well.org-chart').after(jobHistoryHtml);
+    });
+
+    $.when(fetchJobData(user), fetchStaticResource('job-data.html')).done(function(jobData, jobDataTemplate) {
+        // Each argument is an array with the following structure: [ data, statusText, jqXHR ]
+        jobData = jobData[0];
+        jobDataTemplate = jobDataTemplate[0];
+
+        // If PhoneTool is displaying tenure or level, don't emit it twice
+        var employeeInfoText = $('.UserDetailsTable').text().toLowerCase();
+        if (employeeInfoText.search('tenure') >= 0) {
+            jobData.total_tenure_formatted = undefined;
+        }
+        if (employeeInfoText.search('level') >= 0) {
+            jobData.job_level = undefined;
+        }
+
+        // Insert job data after employee id
+        var jobDataHtml = renderJobData(jobDataTemplate, jobData);
+        $('.UserDetailsTable').append(jobDataHtml);
+    });
+}(jQuery.noConflict(true), Handlebars));
